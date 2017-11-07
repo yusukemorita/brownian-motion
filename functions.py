@@ -30,9 +30,9 @@ def find_closest_position(circle): # circle = [x, y]
             })
         return new_id
 
-def sort_and_write_to_excel(array, file_name):
+def sort_and_write_to_excel(array, file_name, dir_path):
 
-    workbook = xlsxwriter.Workbook('/Users/yusukemorita/Desktop/{}.xlsx'.format(file_name))
+    workbook = xlsxwriter.Workbook(dir_path + file_name + '.xlsx')
     worksheet = workbook.add_worksheet()
 
 
@@ -54,3 +54,9 @@ def sort_and_write_to_excel(array, file_name):
 
     workbook.close()
 
+def print_clear(string):
+    print('')
+    print('>'*40)
+    print(string)
+    print('>'*40)
+    print('')

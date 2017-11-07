@@ -3,27 +3,35 @@ from subprocess import call
 import os
 import cv2 as cv
 import numpy as np
-from functions import sort_and_write_to_excel
+from functions import sort_and_write_to_excel, print_clear
 
 # define necessary variables
 
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M")
-video_path = '/Users/yusukemorita/' + input('input file path after /Users/yusukemorita/ (eg. Desktop/30sec.mov) : ')
+video_path = '/Users/yusukemorita/Desktop/' + input('input file name in Desktop : ')
 dir_path = '/Users/yusukemorita/brownian_motion/{}/'.format(current_time)
-background = cv.imread('/Users/yusukemorita/brownian_motion/background.png')
 
 # create necessary directories
 
-call('mkdir ~/brownian_motion/{}'.format(current_time), shell=True)
-call('mkdir ~/brownian_motion/{}/original'.format(current_time), shell=True)
-call('mkdir ~/brownian_motion/{}/subtracted'.format(current_time), shell=True)
+print_clear('creating directories')
+call('mkdir {}'.format(dir_path), shell=True)
+call('mkdir {}original'.format(dir_path), shell=True)
+call('mkdir {}subtracted'.format(dir_path), shell=True)
 
 # 動画を画像ファイルに変換
 
-call('ffmpeg -i {} -r 10 ~/brownian_motion/{}/original/%03d.png'.format(video_path, current_time), shell=True)
+print_clear('converting video file to images')
+call('ffmpeg -i {} -r 10 {}/original/%03d.png'.format(video_path, dir_path), shell=True)
+
+# 平均化した背景画像を作成
+
+print_clear('creating background image')
+call('convert {}original/*.png -evaluate-sequence median {}background.png'.format(dir_path, dir_path), shell=True)
+background = cv.imread('{}background.png'.format(dir_path))
 
 # 画像から背景画像を引き算
 
+print_clear('subtracting background image from images with particles')
 for idx, filename in enumerate(os.listdir(dir_path + 'original')):
     original_image = cv.imread(dir_path + 'original/' + filename)
     subtracted_image = cv.subtract(original_image, background)
@@ -36,6 +44,7 @@ for idx, filename in enumerate(os.listdir(dir_path + 'original')):
 #                                 ...
 #   {"photo_num" => n, "circles" => [[x1, y1], [x2, y2], [x3, y3]]}
 # ]
+print_clear('detecting circles')
 circle_array = []
 
 for photo_num, filename in enumerate(os.listdir(dir_path + 'subtracted')):
@@ -63,4 +72,5 @@ for photo_num, filename in enumerate(os.listdir(dir_path + 'subtracted')):
 # remove empty elements from circle_array
 circle_array = [item for item in circle_array if item]
 
-sort_and_write_to_excel(circle_array, current_time)
+print_clear('writing to excel')
+sort_and_write_to_excel(circle_array, current_time, dir_path)
