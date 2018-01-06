@@ -1,4 +1,5 @@
 import xlsxwriter
+import csv
 
 current_circle_positions = []
 # [{"circle_id" : 1, "x" : x, "y" : y},
@@ -17,7 +18,7 @@ def find_closest_position(circle): # circle = [x, y]
             min_diff = diff
             min_id = position["circle_id"]
 
-    if min_diff < 30:
+    if min_diff < 50:
         current_circle_positions[min_id]["x"] = circle[0]
         current_circle_positions[min_id]["y"] = circle[1]
         return min_id
@@ -35,12 +36,11 @@ def sort_and_write_to_excel(array, file_name, dir_path):
     workbook = xlsxwriter.Workbook(dir_path + file_name + '.xlsx')
     worksheet = workbook.add_worksheet()
 
-
-    for circle_hash in array:
-        row = circle_hash["photo_num"] + 2
-        worksheet.write(row, 0, circle_hash["photo_num"])
-        print('writing photo_num : {}'.format(circle_hash["photo_num"]))
-        for circle in circle_hash["circles"]:
+    for photo_circles in array:
+        row = photo_circles["photo_num"] + 2
+        worksheet.write(row, 0, photo_circles["photo_num"])
+        print('writing photo_num : {}'.format(photo_circles["photo_num"]))
+        for circle in photo_circles["circles"]:
             # circle = [x1, y1]
             col = find_closest_position(circle) * 2 + 1
             worksheet.write(row, col    , circle[0])
@@ -54,9 +54,16 @@ def sort_and_write_to_excel(array, file_name, dir_path):
 
     workbook.close()
 
-def print_clear(string):
-    print('')
-    print('>'*40)
-    print(string)
-    print('>'*40)
-    print('')
+def sort_and_write_csv(array, file_name, dir_path):
+
+    # f = open('/Users/yusukemorita/brownian_motion/raw_data.csv','a')
+    f = open(dir_path + file_name + '.csv','w')
+
+    for photo_circles in array:
+        print('writing photo_num : {}'.format(photo_circles["photo_num"]))
+        for circle in photo_circles["circles"]: # circle = [x1, y1]
+            circle_id = find_closest_position(circle)
+            csv_array =[photo_circles["photo_num"], circle_id + 3, circle[0], circle[1]]
+            f.write(','.join(str(x) for x in csv_array) + '\n')
+
+    f.close()
