@@ -87,14 +87,14 @@ def remove_duplicates(circles):
     result = []
     for c in circles:
         duplicate_count = sum( (abs(r[0] - c[0]) + abs(r[1] - c[1]) < 50) for r in result)
-        if duplicate_count is 0:
+        if duplicate_count == 0:
             result.append(c)
     return result
 
 def remove_scarce_circles(array):
     result = []
-    seq = [x['circle_id'] for x in array]
-    most_common_3 = collections.Counter(seq) # [(circle_id, count), ...]
+    seq = [circle['circle_id'] for circle in array]
+    most_common_3 = collections.Counter(seq).most_common(3) # [(circle_id, count), ...]
 
     for common in most_common_3:
         for circle in array:
