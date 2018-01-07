@@ -4,6 +4,7 @@ import os
 import cv2 as cv
 import numpy as np
 import csv
+import collections
 
 current_circle_positions = []
 # [{"circle_id" : 1, "x" : x, "y" : y},
@@ -85,24 +86,19 @@ def detect_circles(img):
 def remove_duplicates(circles):
     result = []
     for c in circles:
-        duplicate_count = 0
-        for r in result:
-            if abs(r[0] - c[0]) + abs(r[1] - c[1]) < 50:
-                duplicate_count += 1
+        duplicate_count = sum( (abs(r[0] - c[0]) + abs(r[1] - c[1]) < 50) for r in result)
         if duplicate_count is 0:
             result.append(c)
     return result
 
 def remove_scarce_circles(array):
     result = []
-
     seq = [x['circle_id'] for x in array]
-    max_circle_id = max(seq)
+    most_common_3 = collections.Counter(seq) # [(circle_id, count), ...]
 
-    for circle_id in range(0, max_circle_id + 1):
-        count = sum(h['circle_id'] == circle_id for h in array)
+    for common in most_common_3:
         for circle in array:
-            if count > 500 and circle['circle_id'] == circle_id:
+            if int(circle['circle_id']) == common[0]:
                 result.append(circle)
     return result
 
