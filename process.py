@@ -3,7 +3,49 @@ from subprocess import call
 import os
 import cv2 as cv
 import numpy as np
-from functions import sort_and_write_csv
+import csv
+
+current_circle_positions = []
+# [{"circle_id" : 1, "x" : x, "y" : y},
+#  {"circle_id" : 2, "x" : x, "y" : y},
+#                ...
+#  {"circle_id" : n, "x" : x, "y" : y}]
+# 0 <= circle_id
+
+def find_closest_circle_id(circle): # circle = {'photo:num': n, 'x': x, 'y': y}
+    min_diff = 1000
+    min_id = None
+
+    for position in current_circle_positions:
+        diff = abs(int(circle['x']) - int(position["x"])) + abs(int(circle['y']) - int(position["y"]))
+        if diff < min_diff:
+            min_diff = diff
+            min_id = position["circle_id"]
+
+    if min_diff < 50:
+        current_circle_positions[min_id]["x"] = circle['x']
+        current_circle_positions[min_id]["y"] = circle['y']
+        return min_id
+    else: # create new circle
+        new_id = len(current_circle_positions)
+        current_circle_positions.append({
+            "circle_id" : new_id,
+            "x" : circle['x'],
+            "y" : circle['y']
+            })
+        return new_id
+
+def write_csv(array, file_name, dir_path):
+    f = open(dir_path + file_name + '.csv','w')
+    for circle in array: # circle = {'circle_id': id, 'photo:num': n, 'x': x, 'y': y}
+        csv_array = [circle['photo_num'], circle['circle_id'], circle['x'], circle['y']]
+        f.write(','.join(str(i) for i in csv_array) + '\n')
+    f.close()
+
+def add_circle_ids(array):
+    for circle in array:
+        circle.update({'circle_id': find_closest_circle_id(circle)})
+    return array
 
 def adjust_gamma(image, gamma=1.0):
     invGamma = 1.0 / gamma
@@ -16,7 +58,16 @@ def adjust_image(img):
     return img
 
 def detect_circles(img):
-    circles = cv.HoughCircles(img,cv.HOUGH_GRADIENT,1,20,param1=50,param2=30,minRadius=30,maxRadius=60)
+    circles = cv.HoughCircles(
+        img,                # 画像
+        cv.HOUGH_GRADIENT,  # method
+        1,                  # dp
+        50,                 # minDist (circle間の最小距離)
+        param1=50,          # param1
+        param2=30,          # 大きいほど真円に近い円しか検出されない
+        minRadius=30,       # 最小半径
+        maxRadius=60        # 最大半径
+    )
     result = []
 
     if circles is None:
@@ -28,6 +79,31 @@ def detect_circles(img):
         for circle in circles[0]:
             result.append([circle[0], circle[1]])
 
+    result = remove_duplicates(result)
+    return result
+
+def remove_duplicates(circles):
+    result = []
+    for c in circles:
+        duplicate_count = 0
+        for r in result:
+            if abs(r[0] - c[0]) + abs(r[1] - c[1]) < 50:
+                duplicate_count += 1
+        if duplicate_count is 0:
+            result.append(c)
+    return result
+
+def remove_scarce_circles(array):
+    result = []
+
+    seq = [x['circle_id'] for x in array]
+    max_circle_id = max(seq)
+
+    for circle_id in range(0, max_circle_id + 1):
+        count = sum(h['circle_id'] == circle_id for h in array)
+        for circle in array:
+            if count > 500 and circle['circle_id'] == circle_id:
+                result.append(circle)
     return result
 
 def print_clear(string):
@@ -69,7 +145,7 @@ background = create_background(dir_path)
 
 # 画像から背景画像を引き算, gamma correction
 
-print_clear('subtracting background image from images with particles')
+print_clear('subtracting background image from images')
 for idx, filename in enumerate(os.listdir(dir_path + 'original')):
     original_image = cv.imread(dir_path + 'original/' + filename)
     result = cv.subtract(original_image, background)
@@ -78,10 +154,13 @@ for idx, filename in enumerate(os.listdir(dir_path + 'original')):
 
 # 画像の円を検出、circle_arrayにphoto_circles(photo_numと円の座標)を記入
 # circle_array = [
-#   {"photo_num" => 1, "circles" => [[x1, y1], [x2, y2], [x3, y3]]},
-#   {"photo_num" => 2, "circles" => [[x1, y1], [x2, y2], [x3, y3]]},
-#                                 ...
-#   {"photo_num" => n, "circles" => [[x1, y1], [x2, y2], [x3, y3]]}
+#   {'photo_num': 1, 'x': 123, 'y': 345},
+#   {'photo_num': 1, 'x': 123, 'y': 345},
+#   {'photo_num': 1, 'x': 123, 'y': 345},
+#   {'photo_num': 2, 'x': 123, 'y': 345},
+#   {'photo_num': 2, 'x': 123, 'y': 345},
+#                   ...
+#   {'photo_num': n, 'x': 123, 'y': 345}
 # ]
 print_clear('detecting circles')
 circle_array = []
@@ -92,14 +171,16 @@ for photo_num, filename in enumerate(os.listdir(dir_path + 'subtracted')):
     detected_circles = detect_circles(img)
 
     if len(detected_circles) > 0:
-        photo_circles = {
-            "photo_num" : photo_num,
-            "circles" : detected_circles
+        for circle in detected_circles:
+            circle_hash = {
+                'photo_num' : photo_num,
+                'x' : circle[0],
+                'y' : circle[1]
             }
-        circle_array.append(photo_circles)
+            circle_array.append(circle_hash)
 
-# remove empty elements from circle_array
-circle_array = [item for item in circle_array if item]
+circle_array = add_circle_ids(circle_array)
+circle_array = remove_scarce_circles(circle_array)
 
 print_clear('writing to csv')
-sort_and_write_csv(circle_array, current_time, dir_path)
+write_csv(circle_array, current_time, dir_path)
