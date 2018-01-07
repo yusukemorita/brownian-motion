@@ -67,7 +67,7 @@ def detect_circles(img):
         param1=50,          # param1
         param2=30,          # 大きいほど真円に近い円しか検出されない
         minRadius=30,       # 最小半径
-        maxRadius=60        # 最大半径
+        maxRadius=150        # 最大半径
     )
     result = []
 
@@ -95,11 +95,12 @@ def remove_scarce_circles(array):
     result = []
     seq = [circle['circle_id'] for circle in array]
     most_common_3 = collections.Counter(seq).most_common(3) # [(circle_id, count), ...]
+    common_ids = [i[0] for i in most_common_3]
 
-    for common in most_common_3:
-        for circle in array:
-            if int(circle['circle_id']) == common[0]:
-                result.append(circle)
+    for circle in array:
+        if circle['circle_id'] in common_ids:
+            result.append(circle)
+    result = sorted(result, key=lambda k: k['circle_id'])
     return result
 
 def print_clear(string):
