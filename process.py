@@ -13,6 +13,75 @@ current_circle_positions = []
 #  {"circle_id" : n, "x" : x, "y" : y}]
 # 0 <= circle_id
 
+def main():
+    # define necessary variables
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+    filename = input('input file name in Desktop : ')
+    video_path = '/Users/yusukemorita/Desktop/' + filename
+    dir_path = '/Users/yusukemorita/brownian_motion/{}/'.format(current_time)
+
+    # 画像の処理
+    make_directories(dir_path)
+    video_to_photos(video_path, dir_path)
+    background = create_background(dir_path)
+    subtract_background(dir_path, background)
+
+    # 画像の円を検出、circle_arrayにphoto_circles(photo_numと円の座標)を記入
+    # circle_array = [
+    #   {'photo_num': 1, 'x': 123, 'y': 345},
+    #   {'photo_num': 1, 'x': 123, 'y': 345},
+    #   {'photo_num': 1, 'x': 123, 'y': 345},
+    #   {'photo_num': 2, 'x': 123, 'y': 345},
+    #   {'photo_num': 2, 'x': 123, 'y': 345},
+    #                   ...
+    #   {'photo_num': n, 'x': 123, 'y': 345}
+    # ]
+    print_clear('detecting circles')
+    circle_array = []
+
+    for photo_num, filename in enumerate(os.listdir(dir_path + 'subtracted')):
+        img_path = dir_path + 'subtracted/' + filename
+        img = adjust_image(cv.imread(img_path, 0))
+        detected_circles = detect_circles(img)
+
+        if len(detected_circles) > 0:
+            print('found circles in photo_num: {}'.format(photo_num))
+            for circle in detected_circles:
+                circle_hash = {
+                    'photo_num' : photo_num,
+                    'x' : circle[0],
+                    'y' : circle[1]
+                }
+                circle_array.append(circle_hash)
+
+        else:
+            print('no circles found in photo_num: {}'.format(photo_num))
+
+    circle_array = add_circle_ids(circle_array)
+    circle_array, common_ids = remove_scarce_circles(circle_array)
+
+    new_id = int(input('input smallest new id : '))
+    write_csv(circle_array, dir_path, new_id, common_ids)
+    print_coverage(circle_array, new_id)
+    print('finished analysing {}'.format(filename))
+
+def make_directories(dir_path):
+    call('mkdir {}'.format(dir_path), shell=True)
+    call('mkdir {}original'.format(dir_path), shell=True)
+    call('mkdir {}subtracted'.format(dir_path), shell=True)
+
+def video_to_photos(video_path, dir_path):
+    print_clear('converting video file to images')
+    call('ffmpeg -i {} -r 30 {}/original/%03d.png'.format(video_path, dir_path), shell=True)
+
+def subtract_background(dir_path, background):
+    print_clear('subtracting background image from images')
+    for idx, filename in enumerate(os.listdir(dir_path + 'original')):
+        original_image = cv.imread(dir_path + 'original/' + filename)
+        result = cv.subtract(original_image, background)
+        result = adjust_gamma(result, gamma=2.0)
+        cv.imwrite(dir_path + 'subtracted/{}.png'.format("%03d" % (idx + 1)), result)
+
 def find_closest_circle_id(circle): # circle = {'photo:num': n, 'x': x, 'y': y}
     min_diff = 1000
     min_id = None
@@ -35,13 +104,6 @@ def find_closest_circle_id(circle): # circle = {'photo:num': n, 'x': x, 'y': y}
             "y" : circle['y']
             })
         return new_id
-
-def write_csv(array, file_name, dir_path):
-    f = open(dir_path + file_name + '.csv','w')
-    for circle in array: # circle = {'circle_id': id, 'photo:num': n, 'x': x, 'y': y}
-        csv_array = [circle['photo_num'], circle['circle_id'], circle['x'], circle['y']]
-        f.write(','.join(str(i) for i in csv_array) + '\n')
-    f.close()
 
 def add_circle_ids(array):
     for circle in array:
@@ -71,11 +133,7 @@ def detect_circles(img):
     )
     result = []
 
-    if circles is None:
-        print('no circles found in photo_num: {}'.format(photo_num))
-
-    else:
-        print('found circles in photo_num: {}'.format(photo_num))
+    if circles is not None:
         circles = np.uint16(np.around(circles))
         for circle in circles[0]:
             result.append([circle[0], circle[1]])
@@ -101,7 +159,7 @@ def remove_scarce_circles(array):
         if circle['circle_id'] in common_ids:
             result.append(circle)
     result = sorted(result, key=lambda k: k['circle_id'])
-    return result
+    return result, common_ids
 
 def print_clear(string):
     print('')
@@ -120,64 +178,29 @@ def create_background(dir_path):
     background = cv.imread('{}background.png'.format(dir_path))
     return background
 
-# define necessary variables
+def write_csv(array, dir_path, new_id, common_ids):
+    print_clear('writing to csv')
+    csv_name = '_'.join([str(new_id), str(new_id + 1), str(new_id + 2)])
+    f = open(dir_path + csv_name + '.csv', 'w', newline='')
+    for common in common_ids:
+        for circle in array: # circle = {'circle_id': id, 'photo:num': n, 'x': x, 'y': y}
+            if circle['circle_id'] == common:
+                csv_array = [circle['photo_num'], new_id, circle['x'], circle['y']]
+                f.write(','.join(str(i) for i in csv_array) + '\n')
+        new_id += 1
+    f.close()
 
-current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M")
-video_path = '/Users/yusukemorita/Desktop/' + input('input file name in Desktop : ')
-dir_path = '/Users/yusukemorita/brownian_motion/{}/'.format(current_time)
+def print_coverage(array, new_id):
+    f = open('/Users/yusukemorita/brownian_motion/coverage.csv','a')
+    seq = [circle['circle_id'] for circle in array]
+    common_ids = collections.Counter(seq).most_common(3) # [(circle_id, count), ...]
+    for common in common_ids:
+        photo_nums = [x['photo_num'] for x in array if x['circle_id'] == common[0]]
+        range_ = max(photo_nums) - min(photo_nums)
+        percent = 100 * common[1] / range_
+        print('circle_id: {}, coverage: {}%'.format(new_id, percent))
+        f.write('id: {}, {}%\n'.format(new_id, percent))
+        new_id += 1
+    f.close()
 
-# create necessary directories
-
-print_clear('creating directories')
-call('mkdir {}'.format(dir_path), shell=True)
-call('mkdir {}original'.format(dir_path), shell=True)
-call('mkdir {}subtracted'.format(dir_path), shell=True)
-
-# 動画を画像ファイルに変換
-
-print_clear('converting video file to images')
-call('ffmpeg -i {} -r 30 {}/original/%03d.png'.format(video_path, dir_path), shell=True)
-
-background = create_background(dir_path)
-
-# 画像から背景画像を引き算, gamma correction
-
-print_clear('subtracting background image from images')
-for idx, filename in enumerate(os.listdir(dir_path + 'original')):
-    original_image = cv.imread(dir_path + 'original/' + filename)
-    result = cv.subtract(original_image, background)
-    result = adjust_gamma(result, gamma=2.0)
-    cv.imwrite(dir_path + 'subtracted/{}.png'.format("%03d" % (idx + 1)), result)
-
-# 画像の円を検出、circle_arrayにphoto_circles(photo_numと円の座標)を記入
-# circle_array = [
-#   {'photo_num': 1, 'x': 123, 'y': 345},
-#   {'photo_num': 1, 'x': 123, 'y': 345},
-#   {'photo_num': 1, 'x': 123, 'y': 345},
-#   {'photo_num': 2, 'x': 123, 'y': 345},
-#   {'photo_num': 2, 'x': 123, 'y': 345},
-#                   ...
-#   {'photo_num': n, 'x': 123, 'y': 345}
-# ]
-print_clear('detecting circles')
-circle_array = []
-
-for photo_num, filename in enumerate(os.listdir(dir_path + 'subtracted')):
-    img_path = dir_path + 'subtracted/' + filename
-    img = adjust_image(cv.imread(img_path, 0))
-    detected_circles = detect_circles(img)
-
-    if len(detected_circles) > 0:
-        for circle in detected_circles:
-            circle_hash = {
-                'photo_num' : photo_num,
-                'x' : circle[0],
-                'y' : circle[1]
-            }
-            circle_array.append(circle_hash)
-
-circle_array = add_circle_ids(circle_array)
-circle_array = remove_scarce_circles(circle_array)
-
-print_clear('writing to csv')
-write_csv(circle_array, current_time, dir_path)
+main()
