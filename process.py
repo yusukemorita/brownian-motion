@@ -16,7 +16,8 @@ current_circle_positions = []
 def main():
     # define necessary variables
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M")
-    video_path = '/Users/yusukemorita/Desktop/' + input('input file name in Desktop : ')
+    filename = input('input file name in Desktop : ')
+    video_path = '/Users/yusukemorita/Desktop/' + filename
     dir_path = '/Users/yusukemorita/brownian_motion/{}/'.format(current_time)
 
     # 画像の処理
@@ -57,11 +58,12 @@ def main():
             print('no circles found in photo_num: {}'.format(photo_num))
 
     circle_array = add_circle_ids(circle_array)
-    circle_array = remove_scarce_circles(circle_array)
+    circle_array, common_ids = remove_scarce_circles(circle_array)
 
-    print_clear('writing to csv')
-    write_csv(circle_array, dir_path, current_time)
-    print_coverage(circle_array)
+    new_id = int(input('input smallest new id : '))
+    write_csv(circle_array, dir_path, new_id, common_ids)
+    print_coverage(circle_array, new_id)
+    print('finished analysing {}'.format(filename))
 
 def make_directories(dir_path):
     call('mkdir {}'.format(dir_path), shell=True)
@@ -102,13 +104,6 @@ def find_closest_circle_id(circle): # circle = {'photo:num': n, 'x': x, 'y': y}
             "y" : circle['y']
             })
         return new_id
-
-def write_csv(array, dir_path, current_time):
-    f = open(dir_path + current_time + '.csv','w')
-    for circle in array: # circle = {'circle_id': id, 'photo:num': n, 'x': x, 'y': y}
-        csv_array = [circle['photo_num'], circle['circle_id'], circle['x'], circle['y']]
-        f.write(','.join(str(i) for i in csv_array) + '\n')
-    f.close()
 
 def add_circle_ids(array):
     for circle in array:
@@ -164,7 +159,7 @@ def remove_scarce_circles(array):
         if circle['circle_id'] in common_ids:
             result.append(circle)
     result = sorted(result, key=lambda k: k['circle_id'])
-    return result
+    return result, common_ids
 
 def print_clear(string):
     print('')
@@ -183,13 +178,29 @@ def create_background(dir_path):
     background = cv.imread('{}background.png'.format(dir_path))
     return background
 
-def print_coverage(array):
-    ids = [circle['circle_id'] for circle in array]
-    most_common_3 = collections.Counter(ids).most_common(3) # [(circle_id, count), ...]
-    for common in most_common_3:
+def write_csv(array, dir_path, new_id, common_ids):
+    print_clear('writing to csv')
+    csv_name = '_'.join([str(new_id), str(new_id + 1), str(new_id + 2)])
+    f = open(dir_path + csv_name + '.csv', 'w', newline='')
+    for common in common_ids:
+        for circle in array: # circle = {'circle_id': id, 'photo:num': n, 'x': x, 'y': y}
+            if circle['circle_id'] == common:
+                csv_array = [circle['photo_num'], new_id, circle['x'], circle['y']]
+                f.write(','.join(str(i) for i in csv_array) + '\n')
+        new_id += 1
+    f.close()
+
+def print_coverage(array, new_id):
+    f = open('/Users/yusukemorita/brownian_motion/coverage.csv','a')
+    seq = [circle['circle_id'] for circle in array]
+    common_ids = collections.Counter(seq).most_common(3) # [(circle_id, count), ...]
+    for common in common_ids:
         photo_nums = [x['photo_num'] for x in array if x['circle_id'] == common[0]]
         range_ = max(photo_nums) - min(photo_nums)
         percent = 100 * common[1] / range_
-        print('circle_id: {}, coverage: {}%'.format(common[0], percent))
+        print('circle_id: {}, coverage: {}%'.format(new_id, percent))
+        f.write('id: {}, {}%\n'.format(new_id, percent))
+        new_id += 1
+    f.close()
 
 main()
