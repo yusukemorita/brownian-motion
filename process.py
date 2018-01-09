@@ -16,8 +16,8 @@ current_circle_positions = []
 def main():
     # define necessary variables
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M")
-    filename = input('input file name in Desktop : ')
-    video_path = '/Users/yusukemorita/Desktop/' + filename
+    vid_filename = input('input file name in Desktop : ')
+    video_path = '/Users/yusukemorita/Desktop/' + vid_filename
     dir_path = '/Users/yusukemorita/brownian_motion/{}/'.format(current_time)
 
     # 画像の処理
@@ -63,7 +63,7 @@ def main():
     new_id = int(input('input smallest new id : '))
     write_csv(circle_array, dir_path, new_id, common_ids)
     print_coverage(circle_array, new_id)
-    print('finished analysing {}'.format(filename))
+    print('finished analysing {}'.format(vid_filename))
 
 def make_directories(dir_path):
     call('mkdir {}'.format(dir_path), shell=True)
@@ -127,9 +127,9 @@ def detect_circles(img):
         1,                  # dp
         50,                 # minDist (circle間の最小距離)
         param1=50,          # param1
-        param2=30,          # 大きいほど真円に近い円しか検出されない
-        minRadius=30,       # 最小半径
-        maxRadius=150        # 最大半径
+        param2=18,          # 大きいほど真円に近い円しか検出されない
+        minRadius=0,       # 最小半径
+        maxRadius=120        # 最大半径
     )
     result = []
 
