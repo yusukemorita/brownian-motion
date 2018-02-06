@@ -22,7 +22,7 @@ def main():
 
     # 画像の処理
     make_directories(dir_path)
-    video_to_photos(video_path, dir_path)
+    convert_video_to_photos(video_path, dir_path)
     background = create_background(dir_path)
     subtract_background(dir_path, background)
 
@@ -70,9 +70,9 @@ def make_directories(dir_path):
     call('mkdir {}original'.format(dir_path), shell=True)
     call('mkdir {}subtracted'.format(dir_path), shell=True)
 
-def video_to_photos(video_path, dir_path):
+def convert_video_to_photos(video_path, dir_path):
     print_clear('converting video file to images')
-    call('ffmpeg -i {} -r 30 {}/original/%03d.png'.format(video_path, dir_path), shell=True)
+    call('ffmpeg -i {} -r 30 {}/original/%04d.png'.format(video_path, dir_path), shell=True)
 
 def subtract_background(dir_path, background):
     print_clear('subtracting background image from images')
@@ -80,7 +80,7 @@ def subtract_background(dir_path, background):
         original_image = cv.imread(dir_path + 'original/' + filename)
         result = cv.subtract(original_image, background)
         result = adjust_gamma(result, gamma=2.0)
-        cv.imwrite(dir_path + 'subtracted/{}.png'.format("%03d" % (idx + 1)), result)
+        cv.imwrite(dir_path + 'subtracted/{}.png'.format(filename.split('.')[0]), result)
 
 def find_closest_circle_id(circle): # circle = {'photo:num': n, 'x': x, 'y': y}
     min_diff = 1000
@@ -125,9 +125,9 @@ def detect_circles(img):
         img,                # 画像
         cv.HOUGH_GRADIENT,  # method
         1,                  # dp
-        50,                 # minDist (circle間の最小距離)
+        10,                 # minDist (circle間の最小距離)
         param1=50,          # param1
-        param2=18,          # 大きいほど真円に近い円しか検出されない
+        param2=10,          # 大きいほど真円に近い円しか検出されない
         minRadius=0,       # 最小半径
         maxRadius=120        # 最大半径
     )
@@ -174,7 +174,7 @@ def print_clear(string):
 
 def create_background(dir_path):
     print_clear('creating background image')
-    call('convert {}original/0*.png -evaluate-sequence median {}background.png'.format(dir_path, dir_path), shell=True)
+    call('convert {}original/??0?.png -evaluate-sequence median {}background.png'.format(dir_path, dir_path), shell=True)
     background = cv.imread('{}background.png'.format(dir_path))
     return background
 
