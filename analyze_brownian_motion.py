@@ -62,7 +62,7 @@ def main():
 
     new_id = int(input('input smallest new id : '))
     write_csv(circle_array, dir_path, new_id, common_ids)
-    print_coverage(circle_array, new_id)
+    print_coverage(circle_array, new_id, vid_filename)
     print('finished analysing {}'.format(vid_filename))
 
 def make_directories(dir_path):
@@ -190,10 +190,11 @@ def write_csv(array, dir_path, new_id, common_ids):
         new_id += 1
     f.close()
 
-def print_coverage(array, new_id):
+def print_coverage(array, new_id, filename):
     f = open('/Users/yusukemorita/brownian_motion/coverage.csv','a')
     seq = [circle['circle_id'] for circle in array]
     common_ids = collections.Counter(seq).most_common(3) # [(circle_id, count), ...]
+    f.write(file_name + '\n')
     for common in common_ids:
         photo_nums = [x['photo_num'] for x in array if x['circle_id'] == common[0]]
         range_ = max(photo_nums) - min(photo_nums)
